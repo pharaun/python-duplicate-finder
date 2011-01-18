@@ -82,7 +82,7 @@ def generate_image_sim(path):
                 return None
 
             image_pixel = np.asarray(image)
-            img_sum = []
+            img_sum = np.zeros( (32, 32, 3) )
 
             # Start looping through it
             j = 0
@@ -97,13 +97,14 @@ def generate_image_sim(path):
                     except IndexError:
                         return None
 
-                    # Append a rgb tuple to a list
-                    img_sum.append( (r, g, b) )
+                    img_sum[ys:, xs:, 0:1] = r
+                    img_sum[ys:, xs:, 1:2] = g
+                    img_sum[ys:, xs:, 2:3] = b
 
                     i += x_inc
                 j += y_inc
 
-            return img_sum
+            return (np.rint(np.nan_to_num(img_sum)), path)
 
     except IOError:
         return None
@@ -123,15 +124,27 @@ def generate_sim_data(img_list):
     pool = Pool(processes=24)
     img = pool.map(generate_image_sim, filepath)
 
-#    for root, filename in img_list:
-#        img.append( (root, filename, generate_image_sim(os.path.join(root, filename))) )
-#
-#        i += 1
-#        print "\r" + str(i) + "/" + str(total) + " - %.2f" % (100.0 * (float(i) / total)) + "%",
-#        sys.stdout.flush()
-
-
     return img
+
+
+################################################################################
+def image_sim_compare(sima, simb):
+    c = np.sum(np.absolute(np.subtract(sima, simb)))
+    return (1.0 - (c / (255.0 * 1024.0 * 3.0)))
+
+
+################################################################################
+def compare_image_sims(img_list):
+    ret = []
+
+    i = 1
+    for arr1, path1 in img_list:
+        for arr2, path2 in img_list[i:]:
+            ret.append( (image_sim_compare(arr1, arr2), path1, path2) )
+        i += 1
+
+    return ret
+
 
 
 if __name__ == '__main__':
@@ -144,13 +157,22 @@ if __name__ == '__main__':
     img = generate_img_list(rootdir)
     #calc_image_stats(img)
 
-    h = hpy()
+#    h = hpy()
     sim = generate_sim_data(img)
-    print h.heap()
+#    print h.heap()
 
+    # Flush out the None's
+    sim = [item for item in sim if item != None]
+
+    # Compare
+    comp = compare_image_sims(sim)
+
+    # Flush out the 0.0's
     with open('out', 'w') as f:
-        for line in sim:
-            f.write(sim)
+        for val, path1, path2 in comp:
+            if val >= 0.9:
+                print >>f, str(val) + " - " + path1 + " - " + path2
+
 
 
 ## Create a hash and compare the size
