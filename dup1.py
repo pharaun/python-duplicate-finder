@@ -170,7 +170,7 @@ if __name__ == '__main__':
     # Flush out the 0.0's
     with open('out', 'w') as f:
         for val, path1, path2 in comp:
-            if val >= 0.9:
+            if val >= 0.98:
                 print >>f, str(val) + " - " + path1 + " - " + path2
 
 
