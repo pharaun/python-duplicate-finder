@@ -12,6 +12,7 @@ import hashlib
 import Image
 import numpy as np
 from multiprocessing import Pool
+from optparse import OptionParser
 from guppy import hpy
 
 ################################################################################
@@ -47,10 +48,13 @@ def calc_image_stats(img_list):
 
 
 ################################################################################
-def generate_img_list(rootdir):
+def generate_img_list(rootdir, exclude):
     img = []
 
-    for root, sub, files in os.walk(rootdir):
+    for root, dirs, files in os.walk(rootdir):
+        if exclude in dirs:
+            dirs.remove(exclude)
+
         for filename in files:
             path = os.path.abspath(os.path.join(root, filename))
             what = imghdr.what(path)
@@ -113,8 +117,6 @@ def generate_image_sim(path):
 ################################################################################
 def generate_sim_data(img_list):
     img = []
-#    total = len(img_list)
-#    i = 0
 
     filepath = []
     for root, filename in img_list:
@@ -124,54 +126,96 @@ def generate_sim_data(img_list):
     pool = Pool(processes=24)
     img = pool.map(generate_image_sim, filepath)
 
+    # Finish/close the pool
+    pool.close()
+    pool.join()
+
+    # Flush out the None's
+    img = [item for item in img if item != None]
     return img
 
 
 ################################################################################
-def image_sim_compare(sima, simb):
-    c = np.sum(np.absolute(np.subtract(sima, simb)))
-    return (1.0 - (c / (255.0 * 1024.0 * 3.0)))
+def image_sim_compare_pool(lista):
+    sima, patha, listb = lista
+    ret = []
+
+    for simb, pathb in listb:
+        c = np.sum(np.absolute(np.subtract(sima, simb)))
+        fp = (1.0 - (c / (255.0 * 1024.0 * 3.0)))
+
+        if fp >= 0.98:
+            ret.append( (fp, patha, pathb) )
+
+    if not ret:
+        return None
+    else:
+        return ret
 
 
 ################################################################################
-def compare_image_sims(img_list):
+def compare_image_sims_pool(img_list):
     ret = []
+    listing = []
 
     i = 1
     for arr1, path1 in img_list:
-        for arr2, path2 in img_list[i:]:
-            ret.append( (image_sim_compare(arr1, arr2), path1, path2) )
+        listing.append( (arr1, path1, img_list[i:]) )
         i += 1
 
+    # Setup the pools?
+    pool = Pool(processes=24)
+    ret = pool.map(image_sim_compare_pool, listing)
+
+    # Finish/close the pool
+    pool.close()
+    pool.join()
+
+    # Flush out the None's
+    ret = [item for item in ret if item != None]
+
+    # Flatten the list
+    ret = reduce(lambda x, y: x + y, ret)
     return ret
 
 
 
 if __name__ == '__main__':
-    # Rest of the program
-    if len(sys.argv) != 2:
-        print sys.argv[0] + " <directory to recurse into>"
-        sys.exit(2)
-    rootdir = sys.argv[1]
+    # Option Parser
+    usage = "usage: %prog [options] rootdir"
+    parser = OptionParser(usage)
+    parser.add_option("-e", "--exclude", dest="exclude", help="Exclude this directory")
 
-    img = generate_img_list(rootdir)
+    options, args = parser.parse_args()
+    if len(args) != 1:
+        parser.error("Need a root directory to recurse into")
+
+    rootdir = args[0]
+    exclude = options.exclude
+
+    print "Generating image listing..."
+    img = generate_img_list(rootdir, exclude)
     #calc_image_stats(img)
 
-#    h = hpy()
-    sim = generate_sim_data(img)
-#    print h.heap()
+    print len(img)
 
-    # Flush out the None's
-    sim = [item for item in sim if item != None]
+    # Generate SIM
+    h = hpy()
+    print "Generating image sim..."
+    sim = generate_sim_data(img)
+    print h.heap()
+
 
     # Compare
-    comp = compare_image_sims(sim)
+    h = hpy()
+    print "Comparing image sim..."
+    comp = compare_image_sims_pool(sim)
+    print h.heap()
 
     # Flush out the 0.0's
     with open('out', 'w') as f:
         for val, path1, path2 in comp:
-            if val >= 0.98:
-                print >>f, str(val) + " - " + path1 + " - " + path2
+            print >>f, str(val) + " - " + path1 + " - " + path2
 
 
 
@@ -210,3 +254,21 @@ if __name__ == '__main__':
 #
 ## Flush list in the dictionary that has only 1 file in it
 #hashes = dict((k, v) for k, v in hashes.items() if len(v) > 1)
+#
+#################################################################################
+#def image_sim_compare(sima, simb):
+#    c = np.sum(np.absolute(np.subtract(sima, simb)))
+#    return (1.0 - (c / (255.0 * 1024.0 * 3.0)))
+#
+#
+#################################################################################
+#def compare_image_sims(img_list):
+#    ret = []
+#
+#    i = 1
+#    for arr1, path1 in img_list:
+#        for arr2, path2 in img_list[i:]:
+#            ret.append( (image_sim_compare(arr1, arr2), path1, path2) )
+#        i += 1
+#
+#    return ret
