@@ -137,15 +137,24 @@ def generate_sim_data(img_list):
 
 ################################################################################
 def image_sim_compare_pool(lista):
-    sima, patha, listb = lista
+    sima, patha, idx = lista
+    length = len(sim)
     ret = []
 
-    for simb, pathb in listb:
+# This depends on "SIM" being available in the global space before
+# forking
+    while idx < length:
+        simb, pathb = sim[idx]
+#    for simb, pathb in listb:
         c = np.sum(np.absolute(np.subtract(sima, simb)))
         fp = (1.0 - (c / (255.0 * 1024.0 * 3.0)))
 
         if fp >= 0.98:
             ret.append( (fp, patha, pathb) )
+
+# This depends on "SIM" being available in the global space before
+# forking
+        idx += 1
 
     if not ret:
         return None
@@ -160,7 +169,10 @@ def compare_image_sims_pool(img_list):
 
     i = 1
     for arr1, path1 in img_list:
-        listing.append( (arr1, path1, img_list[i:]) )
+#        listing.append( (arr1, path1, img_list[i:]) )
+# This depends on "SIM" being available in the global space before
+# forking
+        listing.append( (arr1, path1, i) )
         i += 1
 
     # Setup the pools?
@@ -196,8 +208,6 @@ if __name__ == '__main__':
     print "Generating image listing..."
     img = generate_img_list(rootdir, exclude)
     #calc_image_stats(img)
-
-    print len(img)
 
     # Generate SIM
     h = hpy()
