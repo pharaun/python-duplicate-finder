@@ -138,13 +138,13 @@ def generate_sim_data(img_list):
 ################################################################################
 def image_sim_compare_pool(lista):
     sima, patha, idx = lista
-    length = len(sim)
+    length = len(test)
     ret = []
 
 # This depends on "SIM" being available in the global space before
 # forking
     while idx < length:
-        simb, pathb = sim[idx]
+        simb, pathb = test[idx]
 #    for simb, pathb in listb:
         c = np.sum(np.absolute(np.subtract(sima, simb)))
         fp = (1.0 - (c / (255.0 * 1024.0 * 3.0)))
@@ -210,17 +210,18 @@ if __name__ == '__main__':
     #calc_image_stats(img)
 
     # Generate SIM
-    h = hpy()
+#   h = hpy()
     print "Generating image sim..."
     sim = generate_sim_data(img)
-    print h.heap()
+#    print h.heap()
 
+    test = tuple(sim)
 
     # Compare
-    h = hpy()
+#    h = hpy()
     print "Comparing image sim..."
     comp = compare_image_sims_pool(sim)
-    print h.heap()
+#    print h.heap()
 
     # Flush out the 0.0's
     with open('out', 'w') as f:
