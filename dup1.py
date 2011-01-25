@@ -15,6 +15,7 @@ from multiprocessing import Pool
 from optparse import OptionParser
 from guppy import hpy
 
+
 ################################################################################
 def calc_image_stats(img_list):
     count = {}
@@ -137,24 +138,17 @@ def generate_sim_data(img_list):
 
 ################################################################################
 def image_sim_compare_pool(lista):
-    sima, patha, idx = lista
-    length = len(test)
+    simpatha, patha, listb = lista
     ret = []
 
-# This depends on "SIM" being available in the global space before
-# forking
-    while idx < length:
-        simb, pathb = test[idx]
-#    for simb, pathb in listb:
+    for simpathb, pathb in listb:
+        sima = np.load(simpatha)
+        simb = np.load(simpathb)
         c = np.sum(np.absolute(np.subtract(sima, simb)))
         fp = (1.0 - (c / (255.0 * 1024.0 * 3.0)))
 
         if fp >= 0.98:
             ret.append( (fp, patha, pathb) )
-
-# This depends on "SIM" being available in the global space before
-# forking
-        idx += 1
 
     if not ret:
         return None
@@ -168,11 +162,8 @@ def compare_image_sims_pool(img_list):
     listing = []
 
     i = 1
-    for arr1, path1 in img_list:
-#        listing.append( (arr1, path1, img_list[i:]) )
-# This depends on "SIM" being available in the global space before
-# forking
-        listing.append( (arr1, path1, i) )
+    for simpath, path in img_list:
+        listing.append( (simpath, path, img_list[i:]) )
         i += 1
 
     # Setup the pools?
@@ -191,7 +182,23 @@ def compare_image_sims_pool(img_list):
     return ret
 
 
+################################################################################
+def cache_sim_data(sim):
+    root = "/dev/shm/data"
+    ret = []
+    idx = 0
 
+    for sim, pathb in sim:
+        filename = os.path.join(root, str(idx) + ".sim")
+        sim.dump(filename)
+        idx += 1
+
+        ret.append( (filename, pathb) )
+
+    return ret
+
+
+################################################################################
 if __name__ == '__main__':
     # Option Parser
     usage = "usage: %prog [options] rootdir"
@@ -215,71 +222,16 @@ if __name__ == '__main__':
     sim = generate_sim_data(img)
 #    print h.heap()
 
-    test = tuple(sim)
+    print "Caching the sim data into a ramdisk..."
+    sim_paths = cache_sim_data(sim)
 
     # Compare
 #    h = hpy()
     print "Comparing image sim..."
-    comp = compare_image_sims_pool(sim)
+    comp = compare_image_sims_pool(sim_paths)
 #    print h.heap()
 
     # Flush out the 0.0's
     with open('out', 'w') as f:
         for val, path1, path2 in comp:
             print >>f, str(val) + " - " + path1 + " - " + path2
-
-
-
-## Create a hash and compare the size
-#size = {}
-#
-#for root, filename, what in img:
-#    fs = os.path.getsize(os.path.join(root, filename))
-#    if fs in size:
-#        fslist = size[fs]
-#        fslist.append((root, filename))
-#        size[fs] = fslist
-#    else:
-#        size[fs] = [(root, filename)]
-#
-## Flush list in the dictionary that has only 1 file in it
-#size = dict((k, v) for k, v in size.items() if len(v) > 1)
-#
-# Do hashes
-#hashes = {}
-#
-#for root, filename, what in img:
-#    sha512 = hashlib.sha512()
-#
-#    with open(os.path.join(root, filename)) as f:
-#        for chunk in iter(lambda: f.read(128 * sha512.block_size), ''):
-#            sha512.update(chunk)
-#
-#    digest = sha512.hexdigest()
-#    if digest in hashes:
-#        dlist = hashes[digest]
-#        dlist.append((root, filename))
-#        hashes[digest] = dlist
-#    else:
-#        hashes[digest] = [(root, filename)]
-#
-## Flush list in the dictionary that has only 1 file in it
-#hashes = dict((k, v) for k, v in hashes.items() if len(v) > 1)
-#
-#################################################################################
-#def image_sim_compare(sima, simb):
-#    c = np.sum(np.absolute(np.subtract(sima, simb)))
-#    return (1.0 - (c / (255.0 * 1024.0 * 3.0)))
-#
-#
-#################################################################################
-#def compare_image_sims(img_list):
-#    ret = []
-#
-#    i = 1
-#    for arr1, path1 in img_list:
-#        for arr2, path2 in img_list[i:]:
-#            ret.append( (image_sim_compare(arr1, arr2), path1, path2) )
-#        i += 1
-#
-#    return ret
