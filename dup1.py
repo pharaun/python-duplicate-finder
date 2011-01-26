@@ -13,7 +13,11 @@ import Image
 import numpy as np
 from multiprocessing import Pool
 from optparse import OptionParser
-from guppy import hpy
+import time
+################################################################################
+import pyximport; pyximport.install()
+import compare_sim
+
 
 ################################################################################
 def calc_image_stats(img_list):
@@ -188,10 +192,46 @@ def compare_image_sims_pool(img_list):
 
     # Flatten the list
     ret = reduce(lambda x, y: x + y, ret)
+
     return ret
 
 
+################################################################################
+def dup(comp, name):
+    dup = calc_dup(comp)
+    print "len " + name + ": " + str(len(comp)) + " dups: " + str(dup) + " nodup: " + str(len(comp) - dup)
 
+
+################################################################################
+def calc_dup(comp):
+    templist = list(comp)
+
+    dupitem = len(comp) - len(set(comp))
+
+    duppath = 0
+    for fp, patha, pathb in comp:
+        if (patha == pathb):
+            duppath += 1
+            templist.remove( (fp, patha, pathb) )
+
+    dupinv = 0
+    consumed_idx = []
+    for idx, item in enumerate(templist):
+        fp, patha, pathb = item
+        inv = (fp, pathb, patha)
+
+        if (inv in templist):
+            if ((templist.index(inv)) in consumed_idx):
+                #skip
+                1+1
+            else:
+                consumed_idx.append(idx)
+                dupinv += 1
+
+    return dupitem + duppath + dupinv
+
+
+################################################################################
 if __name__ == '__main__':
     # Option Parser
     usage = "usage: %prog [options] rootdir"
@@ -210,75 +250,48 @@ if __name__ == '__main__':
     #calc_image_stats(img)
 
     # Generate SIM
-    h = hpy()
     print "Generating image sim..."
     sim = generate_sim_data(img)
-    print h.heap()
 
+    # Cython compare
+    print
+    print "Comparing Cython image sim..."
+    start = time.time()
+    comp1 = compare_sim.compare_image_sims(sim)
+    print "Timing: " + str(time.time() - start) + " s"
 
-    # Compare
-    h = hpy()
-    print "Comparing image sim..."
-    comp = compare_image_sims_pool(sim)
-    print h.heap()
+    # Cython 2 compare
+    print
+    print "Comparing Cython 2 image sim..."
+    start = time.time()
+    comp2 = compare_sim.compare_image_sims2(sim)
+    print "Timing: " + str(time.time() - start) + " s"
 
-    # Flush out the 0.0's
-    with open('out', 'w') as f:
-        for val, path1, path2 in comp:
-            print >>f, str(val) + " - " + path1 + " - " + path2
+    # Multiprocess Python Compare
+    print
+    print "Comparing Multiprocess Python image sim..."
+    start = time.time()
+    comp3 = compare_image_sims_pool(sim)
+    print "Timing: " + str(time.time() - start) + " s"
 
+    print
+    dup(comp1, "cython1")
+    dup(comp2, "cython2")
+    dup(comp3, "multipr")
 
-
-## Create a hash and compare the size
-#size = {}
+#    for idx in xrange(0,len(comp1)):
+#        fpa, pathaa, pathba = comp1[idx]
+#        fpb, pathab, pathbb = comp2[idx]
 #
-#for root, filename, what in img:
-#    fs = os.path.getsize(os.path.join(root, filename))
-#    if fs in size:
-#        fslist = size[fs]
-#        fslist.append((root, filename))
-#        size[fs] = fslist
-#    else:
-#        size[fs] = [(root, filename)]
+#        if (fpa != fpb) or (pathaa != pathab) or (pathba != pathbb):
+#            print fpa, fpb, " - ", pathaa, pathab, " - ", pathba, pathbb
 #
-## Flush list in the dictionary that has only 1 file in it
-#size = dict((k, v) for k, v in size.items() if len(v) > 1)
+#    # Flush out the list
+#    with open('comp1', 'w') as f:
+#        for val, path1, path2 in comp1:
+#            print >>f, str(val) + " - " + path1 + " - " + path2
 #
-# Do hashes
-#hashes = {}
-#
-#for root, filename, what in img:
-#    sha512 = hashlib.sha512()
-#
-#    with open(os.path.join(root, filename)) as f:
-#        for chunk in iter(lambda: f.read(128 * sha512.block_size), ''):
-#            sha512.update(chunk)
-#
-#    digest = sha512.hexdigest()
-#    if digest in hashes:
-#        dlist = hashes[digest]
-#        dlist.append((root, filename))
-#        hashes[digest] = dlist
-#    else:
-#        hashes[digest] = [(root, filename)]
-#
-## Flush list in the dictionary that has only 1 file in it
-#hashes = dict((k, v) for k, v in hashes.items() if len(v) > 1)
-#
-#################################################################################
-#def image_sim_compare(sima, simb):
-#    c = np.sum(np.absolute(np.subtract(sima, simb)))
-#    return (1.0 - (c / (255.0 * 1024.0 * 3.0)))
-#
-#
-#################################################################################
-#def compare_image_sims(img_list):
-#    ret = []
-#
-#    i = 1
-#    for arr1, path1 in img_list:
-#        for arr2, path2 in img_list[i:]:
-#            ret.append( (image_sim_compare(arr1, arr2), path1, path2) )
-#        i += 1
-#
-#    return ret
+#    # Flush out the list
+#    with open('comp2', 'w') as f:
+#        for val, path1, path2 in comp2:
+#            print >>f, str(val) + " - " + path1 + " - " + path2
