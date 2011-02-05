@@ -89,31 +89,3 @@ cpdef list compare_image_sims4(list img_list):
                 ret.append( (fp, patha, pathb) )
 
     return ret
-
-
-################################################################################
-cpdef list compare_image_sims5(list img_list):
-    cdef int start, idxa, idxb, length
-    cdef double c, fp
-#    cdef np.ndarray[np.float64_t, ndim=3] sima, simb
-    cdef list ret
-
-    DEF div = 255.0 * 1024.0 * 3.0
-
-    ret = []
-    start = 0
-    length = len(img_list)
-
-    for idxa in range(0, length):
-        start += 1
-        for idxb in range(start, length):
-            sima, patha = img_list[idxa]
-            simb, pathb = img_list[idxb]
-            c = np.sum(np.absolute(np.subtract(sima, simb)))
-
-            fp = (1.0 - (c / div))
-
-            if fp >= 0.98:
-                ret.append( (fp, patha, pathb) )
-
-    return ret

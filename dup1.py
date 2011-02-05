@@ -232,18 +232,6 @@ def calc_dup(comp):
 
 
 ################################################################################
-def spilt_sim_list(img_list):
-    sims = []
-    paths = []
-
-    for sim, path in img_list:
-        sims.append(sim)
-        paths.append(path)
-
-    return (sims, paths)
-
-
-################################################################################
 if __name__ == '__main__':
     # Option Parser
     usage = "usage: %prog [options] rootdir"
@@ -265,9 +253,6 @@ if __name__ == '__main__':
     print "Generating image sim..."
     sim = generate_sim_data(img)
 
-    # Spilt it for some functions
-    ssim, spath = spilt_sim_list(sim)
-
     # Cython compare
     print
     print "Comparing Cython 4 image sim..."
@@ -275,24 +260,24 @@ if __name__ == '__main__':
     comp1 = compare_sim.compare_image_sims4(sim)
     print "Timing: " + str(time.time() - start) + " s"
 
-    # Cython 2 compare
-    print
-    print "Comparing Cython 5 image sim..."
-    start = time.time()
-    comp2 = compare_sim.compare_image_sims5(sim)
-    print "Timing: " + str(time.time() - start) + " s"
-
-#    # Multiprocess Python Compare
+#    # Cython 2 compare
 #    print
-#    print "Comparing Multiprocess Python image sim..."
+#    print "Comparing Cython 5 image sim..."
 #    start = time.time()
-#    comp3 = compare_image_sims_pool(sim)
+#    comp2 = compare_sim.compare_image_sims5(sim)
 #    print "Timing: " + str(time.time() - start) + " s"
+
+    # Multiprocess Python Compare
+    print
+    print "Comparing Multiprocess Python image sim..."
+    start = time.time()
+    comp3 = compare_image_sims_pool(sim)
+    print "Timing: " + str(time.time() - start) + " s"
 
     print
     dup(comp1, "cython4")
-    dup(comp2, "cython5")
-#    dup(comp3, "multipr")
+#    dup(comp2, "cython5")
+    dup(comp3, "multipr")
 
 #    for idx in xrange(0,len(comp1)):
 #        fpa, pathaa, pathba = comp1[idx]
