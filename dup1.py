@@ -15,9 +15,11 @@ from multiprocessing import Pool
 from optparse import OptionParser
 import time
 ################################################################################
-import pyximport; pyximport.install()
+#import pyximport; pyximport.install()
 import compare_sim
+import fib
 
+print fib.fib(123)
 
 ################################################################################
 def calc_image_stats(img_list):
