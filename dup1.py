@@ -17,9 +17,9 @@ import time
 ################################################################################
 #import pyximport; pyximport.install()
 import compare_sim
-import fib
-
-print fib.fib(123)
+import multiprocess_sim
+#import fib
+#print fib.fib(123)
 
 ################################################################################
 def calc_image_stats(img_list):
@@ -262,24 +262,24 @@ if __name__ == '__main__':
     comp1 = compare_sim.compare_image_sims4(sim)
     print "Timing: " + str(time.time() - start) + " s"
 
-#    # Cython 2 compare
-#    print
-#    print "Comparing Cython 5 image sim..."
-#    start = time.time()
-#    comp2 = compare_sim.compare_image_sims5(sim)
-#    print "Timing: " + str(time.time() - start) + " s"
-
     # Multiprocess Python Compare
     print
     print "Comparing Multiprocess Python image sim..."
     start = time.time()
-    comp3 = compare_image_sims_pool(sim)
+    comp2 = compare_image_sims_pool(sim)
+    print "Timing: " + str(time.time() - start) + " s"
+
+    # Multiprocess Python Compare
+    print
+    print "Comparing Cython Multiprocess Python image sim..."
+    start = time.time()
+    comp3 = multiprocess_sim.sim_pool_setup(sim)
     print "Timing: " + str(time.time() - start) + " s"
 
     print
     dup(comp1, "cython4")
-#    dup(comp2, "cython5")
-    dup(comp3, "multipr")
+    dup(comp2, "multipr")
+    dup(comp3, "cmultipr")
 
 #    for idx in xrange(0,len(comp1)):
 #        fpa, pathaa, pathba = comp1[idx]
