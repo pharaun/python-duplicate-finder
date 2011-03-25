@@ -256,29 +256,31 @@ if __name__ == '__main__':
     sim = generate_sim_data(img)
 
     # Cython compare
-    print
-    print "Comparing Cython 4 image sim..."
-    start = time.time()
-    comp1 = compare_sim.compare_image_sims4(sim)
-    print "Timing: " + str(time.time() - start) + " s"
+#    print
+#    print "Comparing Cython 4 image sim..."
+#    start = time.time()
+#    comp1 = compare_sim.compare_image_sims4(sim)
+#    print "Timing: " + str(time.time() - start) + " s"
 
     # Multiprocess Python Compare
-    print
-    print "Comparing Multiprocess Python image sim..."
-    start = time.time()
-    comp2 = compare_image_sims_pool(sim)
-    print "Timing: " + str(time.time() - start) + " s"
+#    print
+#    print "Comparing Multiprocess Python image sim..."
+#    start = time.time()
+#    comp2 = compare_image_sims_pool(sim)
+#    print "Timing: " + str(time.time() - start) + " s"
 
     # Multiprocess Python Compare
     print
     print "Comparing Cython Multiprocess Python image sim..."
     start = time.time()
-    comp3 = multiprocess_sim.sim_pool_setup(sim)
+    multiprocess_sim.set_sim(sim)
+#    comp3 = multiprocess_sim.sim_pool_setup2(sim)
+    comp3 = multiprocess_sim.sim_pool_setup3()
     print "Timing: " + str(time.time() - start) + " s"
 
     print
-    dup(comp1, "cython4")
-    dup(comp2, "multipr")
+#    dup(comp1, "cython4")
+#    dup(comp2, "multipr")
     dup(comp3, "cmultipr")
 
 #    for idx in xrange(0,len(comp1)):
