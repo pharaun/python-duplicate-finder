@@ -89,3 +89,27 @@ cpdef list compare_image_sims4(list img_list):
                 ret.append( (fp, patha, pathb) )
 
     return ret
+
+
+################################################################################
+cdef extern from "c_sim.h":
+    void c_setup(int N)
+    void c_add(int idx, double* a, char* b)
+    void c_process()
+    void c_teardown()
+
+################################################################################
+def setup(img_list):
+    cdef int idx
+    cdef np.ndarray[np.float64_t, ndim=3] sima
+
+    c_setup(len(img_list))
+
+    for idx in xrange(0, len(img_list)):
+        sima, patha = img_list[idx]
+
+        c_add( idx, <double*> sima.data, patha )
+
+    c_process()
+
+    c_teardown()

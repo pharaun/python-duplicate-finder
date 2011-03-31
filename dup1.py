@@ -270,18 +270,25 @@ if __name__ == '__main__':
 #    print "Timing: " + str(time.time() - start) + " s"
 
     # Multiprocess Python Compare
+#    print
+#    print "Comparing Cython Multiprocess Python image sim..."
+#    start = time.time()
+#    multiprocess_sim.set_sim(sim)
+#    comp3 = multiprocess_sim.sim_pool_setup3()
+#    print "Timing: " + str(time.time() - start) + " s"
+
+    # Multiprocess Python Compare
     print
-    print "Comparing Cython Multiprocess Python image sim..."
+    print "Comparing c image sim..."
     start = time.time()
-    multiprocess_sim.set_sim(sim)
-#    comp3 = multiprocess_sim.sim_pool_setup2(sim)
-    comp3 = multiprocess_sim.sim_pool_setup3()
+    comp4 = compare_sim.setup(sim)
     print "Timing: " + str(time.time() - start) + " s"
 
     print
 #    dup(comp1, "cython4")
 #    dup(comp2, "multipr")
-    dup(comp3, "cmultipr")
+#    dup(comp3, "cmultipr")
+#    dup(comp4, "c")
 
 #    for idx in xrange(0,len(comp1)):
 #        fpa, pathaa, pathba = comp1[idx]
