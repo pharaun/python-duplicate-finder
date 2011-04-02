@@ -95,7 +95,8 @@ cpdef list compare_image_sims4(list img_list):
 cdef extern from "c_sim.h":
     void c_setup(int N)
     void c_add(int idx, double* a, char* b)
-    void c_process()
+    void c_process1()
+    void c_process2()
     void c_teardown()
 
 ################################################################################
@@ -110,6 +111,6 @@ def setup(img_list):
 
         c_add( idx, <double*> sima.data, patha )
 
-    c_process()
+    c_process2()
 
     c_teardown()
