@@ -6,4 +6,5 @@ void c_teardown();
 
 void c_double_to_float();
 void c_process3();
+void c_process4();
 void c_teardown_floats();

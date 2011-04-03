@@ -101,6 +101,7 @@ cdef extern from "c_sim.h":
 
     void c_double_to_float()
     void c_process3()
+    void c_process4()
     void c_teardown_floats()
 
     void c_teardown()
@@ -118,7 +119,7 @@ def setup(img_list):
         c_add( idx, <double*> sima.data, patha )
 
     c_double_to_float()
-    c_process3()
+    c_process4()
     c_teardown_floats()
 
     c_teardown()
