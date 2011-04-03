@@ -1,3 +1,5 @@
+#define SSE
+
 #include "c_sim.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,41 +16,204 @@
 #define SIMILARITY_DIV 783360.0
 #define SIMILARITY_THRESHOLD 0.98
 
-// Macros to hint on branching
-#define likely(x)       __builtin_expect((x),1)
-#define unlikely(x)     __builtin_expect((x),0)
+// Global vars
+//append_to_list()
+struct node* head = NULL;
+struct node* last = NULL;
+int list_length = 0;
 
+//c_get_similarity_next()
+struct node* cur = NULL;
+int done = 0;
+
+// Rest of the app
 const double** array;
 const char** path;
 int length;
 
+// Floats part of the app
+const float** findex;
+float* farray;
+
+
+//##############################################################################
+// Simple Append only linked list
+//##############################################################################
+int append_to_list(double fp, int patha, int pathb) {
+    // allocate the new struct
+    struct node* newnode = malloc(sizeof(struct node));
+
+    if(newnode == NULL) {
+	printf("Out of memory\n");
+    }
+
+    // set the data
+    newnode->fp = fp;
+    newnode->patha = patha;
+    newnode->pathb = pathb;
+
+    newnode->next = NULL;
+
+    // Check to see if list is empty
+    if(head == NULL) {
+	head = newnode;
+	last = newnode;
+
+	list_length += 1;
+	return 0;
+    }
+
+    // List is not empty
+    last->next = newnode;
+    last = last->next;
+
+    list_length += 1;
+
+    return 0;
+}
+
+
+int free_list() {
+    if(head == NULL) {
+	return 0;
+    }
+
+    struct node* prev = head;
+    struct node* next = head->next;
+
+    int count = 0;
+    while(prev != NULL) {
+	free(prev);
+	count += 1;
+
+	prev = next;
+	if(prev != NULL) {
+	    next = prev->next;
+	}
+    }
+
+    printf("freed: %d\n", count);
+
+    head = NULL;
+    last = NULL;
+    list_length = 0;
+
+    return 0;
+}
+
+//##############################################################################
+// Return the values out of the linked list
+//##############################################################################
+int c_get_similarity_next(struct similar* a) {
+    if(head == NULL) {
+	return 0;
+    } else if(done) {
+	return 0;
+    } else if(cur == NULL) {
+	cur = head;
+    }
+
+    // Fill the struct
+    a->fp = cur->fp;
+    a->patha = path[cur->patha];
+    a->pathb = path[cur->pathb];
+
+    struct node* next = cur->next;
+    if(next != NULL) {
+	cur = next;
+    } else {
+	done = 1;
+    }
+
+    return 1;
+}
+
+//##############################################################################
+// Setup and cleanup code
+//##############################################################################
 void c_setup( int N ) {
     printf( "c_setup: %d\n", N);
 
     length = N;
-//    array = malloc(N * sizeof(*array));
     array = calloc(N, sizeof(*array));
-//    path = malloc(N * sizeof(*path));
     path = calloc(N, sizeof(*path));
 
-    if ((array == NULL) || (path == NULL)) {
+    if((array == NULL) || (path == NULL)) {
 	printf("Out of memory\n");
     }
 }
 
 void c_add( int idx, const double a[], const char* b ) {
-    if ((idx >= 0) && (idx < length)) {
+    if((idx >= 0) && (idx < length)) {
 	array[idx] = &a[0];
 	path[idx] = b;
     }
 }
 
-void c_process1() {
-    printf( "c_process1\n");
+void c_teardown() {
+    printf( "c_teardown\n" );
+
+    free(array);
+    free(path);
+
+    array = NULL;
+    path = NULL;
+
+    free_list();
+}
+
+//##############################################################################
+// Double -> Floats here
+//##############################################################################
+void c_double_to_float() {
+    printf( "c_double_to_float:\n");
+
+    // The address of a block returned by malloc or realloc in the GNU system
+    // is always a multiple of eight (or sixteen on 64-bit systems). 
+    findex = calloc(length, sizeof(*findex));
+    farray = calloc((length * ARRAY_LENGTH), sizeof(*farray));
+
+    if((findex == NULL) || (farray == NULL)) {
+	printf("Out of memory\n");
+    }
+
+    // Start the conversion here
+    int i, k;
+
+    for(i = 0; i < length; i++) {
+	const double* sim = array[i];
+
+	// File away this pointer as a index into the index array
+	findex[i] = &farray[(i * ARRAY_LENGTH)];
+
+	// Populate the farray with values
+	for(k = 0; k < ARRAY_LENGTH; k++) {
+	    farray[((i * ARRAY_LENGTH) + k)] = (float)sim[k];
+	}
+    }
+}
+
+void c_teardown_floats() {
+    printf( "c_teardown_floats\n" );
+
+    free(findex);
+    free(farray);
+
+    findex = NULL;
+    farray = NULL;
+}
+
+//##############################################################################
+// Setup and cleanup code
+//##############################################################################
+void c_process() {
+    printf( "c_process\n");
 
     int i, j, k;
     int dup = 0;
 
+#ifdef DOUBLE
+#ifndef SSE
    #pragma omp parallel for shared(dup, array, path) private(j, i, k) schedule (dynamic)
     for(i = 0; i < length; i++) {
 	for(j = (i + 1); j < length; j++) {
@@ -65,22 +230,15 @@ void c_process1() {
 	    double fp = (1.0 - (sum / SIMILARITY_DIV));
 
 	    if(fp >= SIMILARITY_THRESHOLD) {
-//		printf("%f - %s - %s\n", fp, path[i], path[j]);
-		#pragma omp atomic
-		dup += 1;
+		#pragma omp critical
+		{
+		    dup += 1;
+		    append_to_list(fp, i, j);
+		}
 	    }
 	}
     }
-
-    printf("dup: %d\n", dup);
-}
-
-void c_process2() {
-    printf( "c_process2\n");
-
-    int i, j, k;
-    int dup = 0;
-
+#else
     #pragma omp parallel for shared(dup, array, path) private(j, i, k) schedule (dynamic)
     for(i = 0; i < length; i++) {
 	for(j = (i + 1); j < length; j++) {
@@ -123,76 +281,19 @@ void c_process2() {
 	    _mm_store_sd(&fp[0], vsum);
 
 	    if(fp[0] >= SIMILARITY_THRESHOLD) {
-//		printf("%f - %s - %s\n", fp, path[i], path[j]);
-		#pragma omp atomic
-		dup += 1;
+		#pragma omp critical
+		{
+		    dup += 1;
+		    append_to_list(fp[0], i, j);
+		}
 	    }
 	}
     }
-
-    printf("dup: %d\n", dup);
-}
-
-void c_teardown() {
-    printf( "c_teardown\n" );
-
-    free(array);
-    free(path);
-
-    array = NULL;
-    path = NULL;
-}
-
-
-//##############################################################################
-// Double -> Floats here
-//##############################################################################
-
-const float** findex;
-float* farray;
-
-void c_double_to_float() {
-    printf( "c_double_to_float:\n");
-    
-    findex = calloc(length, sizeof(*findex));
-    farray = calloc((length * ARRAY_LENGTH), sizeof(*farray));
-
-    if ((findex == NULL) || (farray == NULL)) {
-	printf("Out of memory\n");
-    }
-
-    // Start the conversion here
-    int i, k;
-
-    for(i = 0; i < length; i++) {
-	const double* sim = array[i];
-
-	// File away this pointer as a index into the index array
-	findex[i] = &farray[(i * ARRAY_LENGTH)];
-
-	// Populate the farray with values
-	for(k = 0; k < ARRAY_LENGTH; k++) {
-	    farray[((i * ARRAY_LENGTH) + k)] = (float)sim[k];
-	}
-    }
-}
-
-void c_teardown_floats() {
-    printf( "c_teardown_floats\n" );
-
-    free(findex);
-    free(farray);
-
-    findex = NULL;
-    farray = NULL;
-}
-
-void c_process3() {
-    printf( "c_process3\n");
-
-    int i, j, k;
-    int dup = 0;
-
+#endif
+#else
+    // Convert the doubles to float
+    c_double_to_float();
+#ifndef SSE
    #pragma omp parallel for shared(dup, array, path) private(j, i, k) schedule (dynamic)
     for(i = 0; i < length; i++) {
 	for(j = (i + 1); j < length; j++) {
@@ -209,22 +310,15 @@ void c_process3() {
 	    float fp = (1.0 - (sum / SIMILARITY_DIV));
 
 	    if(fp >= SIMILARITY_THRESHOLD) {
-//		printf("%f - %s - %s\n", fp, path[i], path[j]);
-		#pragma omp atomic
-		dup += 1;
+		#pragma omp critical
+		{
+		    dup += 1;
+		    append_to_list((double)fp, i, j);
+		}
 	    }
 	}
     }
-
-    printf("dup: %d\n", dup);
-}
-
-void c_process4() {
-    printf( "c_process4\n");
-
-    int i, j, k;
-    int dup = 0;
-
+#else
    #pragma omp parallel for shared(dup, array, path) private(j, i, k) schedule (dynamic)
     for(i = 0; i < length; i++) {
 	for(j = (i + 1); j < length; j++) {
@@ -268,12 +362,18 @@ void c_process4() {
 	    _mm_store_ps(&fp[0], vsum);
 
 	    if(fp[0] >= SIMILARITY_THRESHOLD) {
-//		printf("%f - %s - %s\n", fp, path[i], path[j]);
-		#pragma omp atomic
-		dup += 1;
+		#pragma omp critical
+		{
+		    dup += 1;
+		    append_to_list((double)fp[0], i, j);
+		}
 	    }
 	}
     }
 
-    printf("dup: %d\n", dup);
+    // Clean up
+    c_teardown_floats();
+#endif
+#endif
+    printf("dup: %d - list-length: %d\n", dup, list_length );
 }
