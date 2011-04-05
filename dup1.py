@@ -13,7 +13,13 @@ import Image
 import numpy as np
 from multiprocessing import Pool
 from optparse import OptionParser
-from guppy import hpy
+import time
+################################################################################
+#import pyximport; pyximport.install()
+import compare_sim
+import multiprocess_sim
+#import fib
+#print fib.fib(123)
 
 
 ################################################################################
@@ -179,23 +185,43 @@ def compare_image_sims_pool(img_list):
 
     # Flatten the list
     ret = reduce(lambda x, y: x + y, ret)
+
     return ret
 
 
 ################################################################################
-def cache_sim_data(sim):
-    root = "/dev/shm/data"
-    ret = []
-    idx = 0
+def dup(comp, name):
+    dup = calc_dup(comp)
+    print "len " + name + ": " + str(len(comp)) + " dups: " + str(dup) + " nodup: " + str(len(comp) - dup)
 
-    for sim, pathb in sim:
-        filename = os.path.join(root, str(idx) + ".sim")
-        sim.dump(filename)
-        idx += 1
 
-        ret.append( (filename, pathb) )
+################################################################################
+def calc_dup(comp):
+    templist = list(comp)
 
-    return ret
+    dupitem = len(comp) - len(set(comp))
+
+    duppath = 0
+    for fp, patha, pathb in comp:
+        if (patha == pathb):
+            duppath += 1
+            templist.remove( (fp, patha, pathb) )
+
+    dupinv = 0
+    consumed_idx = []
+    for idx, item in enumerate(templist):
+        fp, patha, pathb = item
+        inv = (fp, pathb, patha)
+
+        if (inv in templist):
+            if ((templist.index(inv)) in consumed_idx):
+                #skip
+                1+1
+            else:
+                consumed_idx.append(idx)
+                dupinv += 1
+
+    return dupitem + duppath + dupinv
 
 
 ################################################################################
@@ -217,21 +243,50 @@ if __name__ == '__main__':
     #calc_image_stats(img)
 
     # Generate SIM
-#   h = hpy()
     print "Generating image sim..."
     sim = generate_sim_data(img)
-#    print h.heap()
 
-    print "Caching the sim data into a ramdisk..."
-    sim_paths = cache_sim_data(sim)
+    # Cython compare
+#    print
+#    print "Comparing Cython 4 image sim..."
+#    start = time.time()
+#    comp1 = compare_sim.compare_image_sims4(sim)
+#    print "Timing: " + str(time.time() - start) + " s"
 
-    # Compare
-#    h = hpy()
-    print "Comparing image sim..."
-    comp = compare_image_sims_pool(sim_paths)
-#    print h.heap()
+    # Multiprocess Python Compare
+#    print
+#    print "Comparing Multiprocess Python image sim..."
+#    start = time.time()
+#    comp2 = compare_image_sims_pool(sim)
+#    print "Timing: " + str(time.time() - start) + " s"
 
-    # Flush out the 0.0's
-    with open('out', 'w') as f:
-        for val, path1, path2 in comp:
-            print >>f, str(val) + " - " + path1 + " - " + path2
+    # Multiprocess Python Compare
+    print
+    print "Comparing Cython Multiprocess Python image sim..."
+    start = time.time()
+    multiprocess_sim.set_sim(sim)
+#    comp3 = multiprocess_sim.sim_pool_setup2(sim)
+    comp3 = multiprocess_sim.sim_pool_setup3()
+    print "Timing: " + str(time.time() - start) + " s"
+
+    print
+#    dup(comp1, "cython4")
+#    dup(comp2, "multipr")
+    dup(comp3, "cmultipr")
+
+#    for idx in xrange(0,len(comp1)):
+#        fpa, pathaa, pathba = comp1[idx]
+#        fpb, pathab, pathbb = comp2[idx]
+#
+#        if (fpa != fpb) or (pathaa != pathab) or (pathba != pathbb):
+#            print fpa, fpb, " - ", pathaa, pathab, " - ", pathba, pathbb
+#
+#    # Flush out the list
+#    with open('comp1', 'w') as f:
+#        for val, path1, path2 in comp1:
+#            print >>f, str(val) + " - " + path1 + " - " + path2
+#
+#    # Flush out the list
+#    with open('comp2', 'w') as f:
+#        for val, path1, path2 in comp2:
+#            print >>f, str(val) + " - " + path1 + " - " + path2
