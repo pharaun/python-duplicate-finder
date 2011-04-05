@@ -7,19 +7,16 @@ file/directory access, imhdr(identification) and so forth
 
 import os
 import sys
+import time
+import Image
 import imghdr
 import hashlib
-import Image
 import numpy as np
 from multiprocessing import Pool
 from optparse import OptionParser
-import time
+
 ################################################################################
-#import pyximport; pyximport.install()
 import compare_sim
-import multiprocess_sim
-#import fib
-#print fib.fib(123)
 
 
 ################################################################################
@@ -143,53 +140,6 @@ def generate_sim_data(img_list):
 
 
 ################################################################################
-def image_sim_compare_pool(lista):
-    simpatha, patha, listb = lista
-    ret = []
-
-    for simpathb, pathb in listb:
-        sima = np.load(simpatha)
-        simb = np.load(simpathb)
-        c = np.sum(np.absolute(np.subtract(sima, simb)))
-        fp = (1.0 - (c / (255.0 * 1024.0 * 3.0)))
-
-        if fp >= 0.98:
-            ret.append( (fp, patha, pathb) )
-
-    if not ret:
-        return None
-    else:
-        return ret
-
-
-################################################################################
-def compare_image_sims_pool(img_list):
-    ret = []
-    listing = []
-
-    i = 1
-    for simpath, path in img_list:
-        listing.append( (simpath, path, img_list[i:]) )
-        i += 1
-
-    # Setup the pools?
-    pool = Pool(processes=24)
-    ret = pool.map(image_sim_compare_pool, listing)
-
-    # Finish/close the pool
-    pool.close()
-    pool.join()
-
-    # Flush out the None's
-    ret = [item for item in ret if item != None]
-
-    # Flatten the list
-    ret = reduce(lambda x, y: x + y, ret)
-
-    return ret
-
-
-################################################################################
 def dup(comp, name):
     dup = calc_dup(comp)
     print "len " + name + ": " + str(len(comp)) + " dups: " + str(dup) + " nodup: " + str(len(comp) - dup)
@@ -239,40 +189,29 @@ if __name__ == '__main__':
     exclude = options.exclude
 
     print "Generating image listing..."
+    start = time.time()
     img = generate_img_list(rootdir, exclude)
-    #calc_image_stats(img)
+    print "Timing: " + str(time.time() - start) + " s"
+    print "Generating image stats..."
+    print
+    calc_image_stats(img)
+    print
 
     # Generate SIM
     print "Generating image sim..."
-    sim = generate_sim_data(img)
-
-    # Cython compare
-#    print
-#    print "Comparing Cython 4 image sim..."
-#    start = time.time()
-#    comp1 = compare_sim.compare_image_sims4(sim)
-#    print "Timing: " + str(time.time() - start) + " s"
-
-    # Multiprocess Python Compare
-#    print
-#    print "Comparing Multiprocess Python image sim..."
-#    start = time.time()
-#    comp2 = compare_image_sims_pool(sim)
-#    print "Timing: " + str(time.time() - start) + " s"
-
-    # Multiprocess Python Compare
-    print
-    print "Comparing Cython Multiprocess Python image sim..."
     start = time.time()
-    multiprocess_sim.set_sim(sim)
-#    comp3 = multiprocess_sim.sim_pool_setup2(sim)
-    comp3 = multiprocess_sim.sim_pool_setup3()
+    sim = generate_sim_data(img)
     print "Timing: " + str(time.time() - start) + " s"
 
+    # Multiprocess Python Compare
+    print "Processing with c n-way compare..."
+    start = time.time()
+    comp4 = compare_sim.compare(sim)
+    print "Timing: " + str(time.time() - start) + " s"
+
+    # Detect duplicate.... duplicates
     print
-#    dup(comp1, "cython4")
-#    dup(comp2, "multipr")
-    dup(comp3, "cmultipr")
+    dup(comp4, "c")
 
 #    for idx in xrange(0,len(comp1)):
 #        fpa, pathaa, pathba = comp1[idx]
