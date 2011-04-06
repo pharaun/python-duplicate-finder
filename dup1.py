@@ -50,6 +50,8 @@ def calc_image_stats(img_list):
     print "---"
     print "TOTAL\t\t - 100.00%\t - " + str(total)
 
+    return total
+
 
 ################################################################################
 def generate_img_list(rootdir, exclude):
@@ -71,12 +73,31 @@ def generate_img_list(rootdir, exclude):
 ################################################################################
 def generate_image_sim(path):
     mode = ('RGB',)
+    conv = ('1', 'P', 'L', 'LA', 'RGBA', 'RGBX', 'CMYK',)
 
     try:
         with open(path) as f:
             image = Image.open(f)
             if not (image.mode in mode):
-                return None
+                if not (image.mode in conv):
+                    return None
+                else:
+                    # First check to see if its an animated image if so
+                    # omit it - This only works for animated GIF's...
+                    if image.info.has_key('version'):
+                        if image.info['version'].__contains__('GIF'):
+                            if image.info.has_key('duration'):
+                                if image.info['duration'] > 0:
+                                    return None
+
+                    # Convert it - Ideally better to process each on
+                    # their own but this will work for extending
+                    # coverage to other image types
+                    try:
+                        image = image.convert('RGB')
+                    except:
+                        return None
+
 
             width, height = image.size
 
@@ -116,6 +137,9 @@ def generate_image_sim(path):
 
     except IOError:
         return None
+    except:
+        print "Unexpected error:", sys.exc_info()[0]
+        raise
 
 
 ################################################################################
@@ -192,18 +216,27 @@ if __name__ == '__main__':
     start = time.time()
     img = generate_img_list(rootdir, exclude)
     print "Timing: " + str(time.time() - start) + " s"
+
+    print
     print "Generating image stats..."
-    print
-    calc_image_stats(img)
-    print
+    total = calc_image_stats(img)
 
     # Generate SIM
+    print
     print "Generating image sim..."
     start = time.time()
     sim = generate_sim_data(img)
     print "Timing: " + str(time.time() - start) + " s"
 
+    # Diag output
+    print
+    print "Image stats..."
+    print "Total images: " + str(total)
+    print "Processed images: " + str(len(sim))
+    print "Omitted images: " + str(total - len(sim))
+
     # Multiprocess Python Compare
+    print
     print "Processing with c n-way compare..."
     start = time.time()
     comp4 = compare_sim.compare(sim)
@@ -211,6 +244,7 @@ if __name__ == '__main__':
 
     # Detect duplicate.... duplicates
     print
+    print "Detecting duplicate duplicates..."
     dup(comp4, "c")
 
 #    for idx in xrange(0,len(comp1)):
