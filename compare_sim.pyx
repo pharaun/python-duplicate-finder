@@ -39,7 +39,7 @@ def compare(img_list):
     ret = []
 
     while (c_get_similarity_next(&tmp) != 0):
-        ret.append( (tmp.fp, tmp.patha, tmp.pathb) )
+        ret.append( (tmp.patha, tmp.pathb, tmp.fp) )
 
     # Clean it all up
     c_teardown()
