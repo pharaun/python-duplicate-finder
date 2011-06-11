@@ -16,6 +16,7 @@ from optparse import OptionParser
 import generate_sim
 import compare_sim
 import fhash
+import generate_svd
 
 ################################################################################
 def generate_img_list(rootdir, exclude):
@@ -114,6 +115,8 @@ if __name__ == '__main__':
             help="Compare with image similarity - abs(a-b)")
     parser.add_option("-f", "--filehash", dest="filehash", default=False, action='store_true',
             help="Compare with File hash")
+    parser.add_option("-v", "--svd", dest="svd", default=False, action='store_true',
+            help="Compare with Singular Value Decomposition")
 
     options, args = parser.parse_args()
     if len(args) != 1:
@@ -123,8 +126,9 @@ if __name__ == '__main__':
     imgsim = options.imgsim
     exclude = options.exclude
     filehash = options.filehash
+    svd = options.svd
 
-    if ((not imgsim) and (not filehash)):
+    if ((not imgsim) and (not filehash) and (not svd)):
         parser.error("Need to pick one compare option")
 
     print "Generating image listing..."
@@ -132,9 +136,9 @@ if __name__ == '__main__':
     img = generate_img_list(rootdir, exclude)
     print "Timing: " + str(time.time() - start) + " s"
 
-    print
-    print "Generating image stats..."
-    total = calc_image_stats(img)
+#    print
+#    print "Generating image stats..."
+#    total = calc_image_stats(img)
 
     comp4 = []
     if imgsim:
@@ -167,10 +171,17 @@ if __name__ == '__main__':
         comp4 = fhash.file_hashes(img)
         print "Timing: " + str(time.time() - start) + " s"
 
+    elif svd:
+        print
+        print "Generating image svd..."
+        start = time.time()
+        sim = generate_svd.generate_svd_data(img)
+        print "Timing: " + str(time.time() - start) + " s"
+
     # Detect duplicate.... duplicates
-    print
-    print "Detecting duplicate duplicates..."
-    dup(comp4, "c")
+#    print
+#    print "Detecting duplicate duplicates..."
+#    dup(comp4, "c")
 
 #    for idx in xrange(0,len(comp1)):
 #        fpa, pathaa, pathba = comp1[idx]
