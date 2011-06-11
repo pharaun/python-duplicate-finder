@@ -1,6 +1,7 @@
 from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Distutils import build_ext
+import numpy
 
 setup(
     cmdclass = {'build_ext': build_ext},
@@ -8,7 +9,8 @@ setup(
                         ["compare_sim.pyx", "c_sim.c"],
                         extra_compile_args=['-O3', '-fopenmp', '-mmmx', '-msse', '-msse2', '-msse3', '-mssse3',
                             '-msse4', '-msse4.1', '-msse4.2', '-maes'],
-                        extra_link_args=['-fopenmp']
+                        extra_link_args=['-fopenmp'],
+                        include_dirs=[numpy.get_include()]
                     )
                    ]
 )

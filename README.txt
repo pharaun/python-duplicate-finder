@@ -15,3 +15,28 @@ is less than a certain amount they are classified as similiar
 1) SIFT/SUFT ?
 2) various type of perceptual hashes
 3) Wavlet....
+4) SVD
+5) Various scaling algo, uses simple average value algo to scale down the
+image for the SIM algo/feature
+
+6) Image filtering ex:
+    a) SIM does not deal good with images that is overall a solid block of
+    single/majority color
+    b) SIM also does not deal good with line drawing (because it'll average
+	out to be white)
+    c) Need to find a way to filter/identify these types of image to filter it
+    out if possible before feeding it to various image processing algos
+
+
+TODO:
+1) Look in if i even need floats, may want to convert all data to uint8,
+    including uint16 so then i can use the "MPSADBW" SSE4.1 instruction, which
+    basically takes a whole bunch of integers and do "sum of absolute
+    differences"
+
+2) Look into uint8 loading instructions to get it loaded as fast as possible
+_mm_sad_epu8
+
+
+Clean up the #pragma, don't need the array or other stuff in there anymore so
+makes sense to clean that stuff up
