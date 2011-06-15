@@ -17,7 +17,7 @@
 #define SIMILARITY_THRESHOLD 0.98
 
 // Number of ... element to create
-#define COUNT 1000
+#define COUNT 10000
 
 // The arrays for each go here
 const float** findex;
@@ -419,7 +419,7 @@ void sse_uint8_process3() {
 	    __m128i sum1 = _mm_setzero_si128();
 	    __m128i sum2 = _mm_setzero_si128();
 
-	    for(k = 0; k < ARRAY_LENGTH/2; k += 16) {
+	    for(k = 0; k < ARRAY_LENGTH/16; k += 2) {
 		sum1 = _mm_add_epi32(sum1, _mm_sad_epu8(sima_si[k], simb_si[k]));
 		sum2 = _mm_add_epi32(sum2, _mm_sad_epu8(sima_si[k+1], simb_si[k+1]));
 	    }
