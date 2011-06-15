@@ -17,7 +17,7 @@
 #define SIMILARITY_THRESHOLD 0.98
 
 // Number of ... element to create
-#define COUNT 10000
+#define COUNT 50000
 
 // The arrays for each go here
 const float** findex;
@@ -339,6 +339,123 @@ void sse_uint8_process() {
     printf("Duplicate found: %d\n", dup);
 }
 
+void sse_uint8_process2() {
+    printf("sse_uint8_process2\n");
+
+    int i, j, k;
+    int dup = 0;
+
+    #pragma omp parallel for shared(dup) private(j, i, k) schedule (dynamic)
+    for(i = 0; i < COUNT; i++) {
+        for(j = (i + 1); j < COUNT; j++) {
+
+            const uint8_t* sima = uindex[i];
+            const uint8_t* simb = uindex[j];
+
+	    // Init partial sums
+	    __m128i vsum = _mm_setzero_si128();
+
+	    for(k = 0; k < ARRAY_LENGTH; k += 16) {
+		// Load 16 uint8_t from sima, simb
+		__m128i va = _mm_load_si128((const __m128i*)&sima[k]);
+		__m128i vb = _mm_load_si128((const __m128i*)&simb[k]);
+
+		// Calc Sum Absolute Difference over the 16x uint8_t
+		// 0, 0, 0, uint16 | 0, 0, 0, uint16
+		__m128i vabsdiff = _mm_sad_epu8(va, vb);
+
+		// Accumulate the two int32 (uint16 "extended")
+		vsum = _mm_add_epi32(vsum, vabsdiff);
+	    }
+
+	    // Accumulate the partial sums into one
+	    // 0, 0 | 0, int32
+	    vsum = _mm_hadd_epi32(vsum, _mm_setzero_si128());
+	    vsum = _mm_hadd_epi32(vsum, _mm_setzero_si128());
+
+	    // Convert the signed int32 to float
+	    __m128 fvsum = _mm_cvtepi32_ps(vsum);
+
+	    // calc fvsum = fvsum / vdiv
+	    fvsum = _mm_div_ps(fvsum, _mm_set1_ps(SIMILARITY_DIV));
+
+	    // calc fvsum = 1.0 - fvsum
+	    fvsum = _mm_sub_ps(_mm_set1_ps(1.0), fvsum);
+
+	    // unload fvsum -> fp
+	    float fp[4];
+	    _mm_store_ps(&fp[0], fvsum);
+
+	    if(fp[0] >= SIMILARITY_THRESHOLD) {
+                #pragma omp critical
+                {
+                    dup += 1;
+                }
+            }
+        }
+    }
+
+    printf("Duplicate found: %d\n", dup);
+}
+
+void sse_uint8_process3() {
+    printf("sse_uint8_process3\n");
+
+    int i, j, k;
+    int dup = 0;
+
+    #pragma omp parallel for shared(dup) private(j, i, k) schedule (dynamic)
+    for(i = 0; i < COUNT; i++) {
+        for(j = (i + 1); j < COUNT; j++) {
+
+	    const uint8_t* sima = uindex[i];
+            const uint8_t* simb = uindex[j];
+
+	    // Breaking the dependency
+	    __m128i* sima_si = (__m128i*) sima;
+	    __m128i* simb_si = (__m128i*) simb;
+
+	    // Init sum
+	    __m128i sum1 = _mm_setzero_si128();
+	    __m128i sum2 = _mm_setzero_si128();
+
+	    for(k = 0; k < ARRAY_LENGTH/2; k += 16) {
+		sum1 = _mm_add_epi32(sum1, _mm_sad_epu8(sima_si[k], simb_si[k]));
+		sum2 = _mm_add_epi32(sum2, _mm_sad_epu8(sima_si[k+1], simb_si[k+1]));
+	    }
+
+	    __m128i sum = _mm_add_epi32(sum1, sum2);
+
+	    // Accumulate the partial sums into one
+	    // 0, 0 | 0, int32
+	    sum = _mm_hadd_epi32(sum, _mm_setzero_si128());
+	    sum = _mm_hadd_epi32(sum, _mm_setzero_si128());
+
+	    // Convert the signed int32 to float
+	    __m128 fsum = _mm_cvtepi32_ps(sum);
+
+	    // calc fvsum = fvsum / vdiv
+	    fsum = _mm_div_ps(fsum, _mm_set1_ps(SIMILARITY_DIV));
+
+	    // calc fvsum = 1.0 - fvsum
+	    fsum = _mm_sub_ps(_mm_set1_ps(1.0), fsum);
+
+	    // unload fsum -> fp
+	    float fp[4];
+	    _mm_store_ps(&fp[0], fsum);
+
+	    if(fp[0] >= SIMILARITY_THRESHOLD) {
+                #pragma omp critical
+                {
+                    dup += 1;
+                }
+            }
+        }
+    }
+
+    printf("Duplicate found: %d\n", dup);
+}
+
 
 int main(int argc, const char** argv) {
     printf("Start\n");
@@ -349,6 +466,7 @@ int main(int argc, const char** argv) {
     clock_t start, diff;
     int startepoch, diffepoch, msec;
 
+    /*
     startepoch = time(NULL);
     start = clock();
     c_float_process();
@@ -366,6 +484,7 @@ int main(int argc, const char** argv) {
     msec = diff * 1000 / CLOCKS_PER_SEC;
     printf("Cpu time taken %d seconds %d milliseconds\n", msec/1000, msec%1000);
     printf("User time taken %d seconds\n\n", diffepoch);
+    */
 
     startepoch = time(NULL);
     start = clock();
@@ -376,6 +495,7 @@ int main(int argc, const char** argv) {
     printf("Cpu time taken %d seconds %d milliseconds\n", msec/1000, msec%1000);
     printf("User time taken %d seconds\n\n", diffepoch);
 
+    /*
     startepoch = time(NULL);
     start = clock();
     c_uint8_process();
@@ -384,10 +504,29 @@ int main(int argc, const char** argv) {
     msec = diff * 1000 / CLOCKS_PER_SEC;
     printf("Cpu time taken %d seconds %d milliseconds\n", msec/1000, msec%1000);
     printf("User time taken %d seconds\n\n", diffepoch);
+    */
 
     startepoch = time(NULL);
     start = clock();
     sse_uint8_process();
+    diff = clock() - start;
+    diffepoch = time(NULL) - startepoch;
+    msec = diff * 1000 / CLOCKS_PER_SEC;
+    printf("Cpu time taken %d seconds %d milliseconds\n", msec/1000, msec%1000);
+    printf("User time taken %d seconds\n\n", diffepoch);
+
+    startepoch = time(NULL);
+    start = clock();
+    sse_uint8_process2();
+    diff = clock() - start;
+    diffepoch = time(NULL) - startepoch;
+    msec = diff * 1000 / CLOCKS_PER_SEC;
+    printf("Cpu time taken %d seconds %d milliseconds\n", msec/1000, msec%1000);
+    printf("User time taken %d seconds\n\n", diffepoch);
+
+    startepoch = time(NULL);
+    start = clock();
+    sse_uint8_process3();
     diff = clock() - start;
     diffepoch = time(NULL) - startepoch;
     msec = diff * 1000 / CLOCKS_PER_SEC;
