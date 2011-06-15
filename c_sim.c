@@ -9,6 +9,7 @@
 
 #include <xmmintrin.h>
 #include <pmmintrin.h>
+#include <smmintrin.h>
 
 // Each array == "3072 entry long - 3 * 32 * 32"
 #define ARRAY_LENGTH 3072
@@ -204,6 +205,19 @@ void c_teardown_floats() {
 }
 
 //##############################################################################
+// Inlined abs
+//##############################################################################
+inline __m128 abs_ps(__m128 x) {
+    const __m128 sign_mask = _mm_set1_ps(-0.0f); // -0.0f = 1 << 31
+    return _mm_andnot_ps(sign_mask, x);
+}
+
+inline __m128d abs_pd(__m128d x) {
+    const __m128d sign_mask = _mm_set1_pd(-0.0); // -0.0 = 1 << 63
+    return _mm_andnot_pd(sign_mask, x); // !sign_mask & x
+}
+
+//##############################################################################
 // Setup and cleanup code
 //##############################################################################
 void c_process() {
@@ -214,10 +228,10 @@ void c_process() {
 
 #ifdef DOUBLE
 #ifndef SSE
-   #pragma omp parallel for shared(dup, array, path) private(j, i, k) schedule (dynamic)
+    #pragma omp parallel for shared(dup) private(j, i, k) schedule (dynamic)
     for(i = 0; i < length; i++) {
 	for(j = (i + 1); j < length; j++) {
-	    
+
 	    const double* sima = array[i];
 	    const double* simb = array[j];
 
@@ -239,46 +253,36 @@ void c_process() {
 	}
     }
 #else
-    #pragma omp parallel for shared(dup, array, path) private(j, i, k) schedule (dynamic)
+    #pragma omp parallel for shared(dup) private(j, i, k) schedule (dynamic)
     for(i = 0; i < length; i++) {
 	for(j = (i + 1); j < length; j++) {
 
-	    const double* sima = array[i];
-	    const double* simb = array[j];
+	    const __m128d* sima = (__m128d*) array[i];
+	    const __m128d* simb = (__m128d*) array[j];
 
-	    // Init partial sums
-	    __m128d vsum = _mm_set1_pd(0.0);
+	    // Init sums
+	    __m128d sum1 = _mm_setzero_pd();
+	    __m128d sum2 = _mm_setzero_pd();
 
-	    for(k = 0; k < ARRAY_LENGTH; k += 2) {
-		// Load 2 doubles from sima, simb
-		__m128d va = _mm_load_pd(&sima[k]);
-		__m128d vb = _mm_load_pd(&simb[k]);
-
-		// Calc diff = sima - simb
-		__m128d vdiff = _mm_sub_pd(va, vb);
-
-		// calc neg diff = 0.0 - diff
-		__m128d vnegdiff = _mm_sub_pd(_mm_set1_pd(0.0), vdiff);
-
-		// calc abs diff = max(diff, - diff)
-		__m128d vabsdiff = _mm_max_pd(vdiff, vnegdiff);
-
-		// accumulate two partial sums
-		vsum = _mm_add_pd(vsum, vabsdiff);
+	    for(k = 0; k < ARRAY_LENGTH/2; k += 2) {
+		sum1 += abs_pd(_mm_sub_pd(sima[k], simb[k]));
+		sum2 += abs_pd(_mm_sub_pd(sima[k+1], simb[k+1]));
 	    }
 
+	    __m128d sum = _mm_add_pd(sum1, sum2);
+
 	    // Accumulate the partial sums into one
-	    vsum = _mm_hadd_pd(vsum, _mm_set1_pd(0.0));
+	    sum = _mm_hadd_pd(sum, _mm_setzero_pd());
 
 	    // calc vsum = vsum / vdiv
-	    vsum = _mm_div_sd(vsum, _mm_set1_pd(SIMILARITY_DIV));
+	    sum = _mm_div_sd(sum, _mm_set1_pd(SIMILARITY_DIV));
 
 	    // calc vsum = 1.0 - vsum
-	    vsum = _mm_sub_pd(_mm_set1_pd(1.0), vsum);
+	    sum = _mm_sub_pd(_mm_set1_pd(1.0), sum);
 
 	    // Unload vsum -> fp
 	    double fp[2];
-	    _mm_store_sd(&fp[0], vsum);
+	    _mm_store_sd(&fp[0], sum);
 
 	    if(fp[0] >= SIMILARITY_THRESHOLD) {
 		#pragma omp critical
@@ -294,10 +298,10 @@ void c_process() {
     // Convert the doubles to float
     c_double_to_float();
 #ifndef SSE
-   #pragma omp parallel for shared(dup, array, path) private(j, i, k) schedule (dynamic)
+    #pragma omp parallel for shared(dup) private(j, i, k) schedule (dynamic)
     for(i = 0; i < length; i++) {
 	for(j = (i + 1); j < length; j++) {
-	    
+
 	    const float* sima = findex[i];
 	    const float* simb = findex[j];
 
@@ -319,47 +323,37 @@ void c_process() {
 	}
     }
 #else
-   #pragma omp parallel for shared(dup, array, path) private(j, i, k) schedule (dynamic)
+    #pragma omp parallel for shared(dup) private(j, i, k) schedule (dynamic)
     for(i = 0; i < length; i++) {
 	for(j = (i + 1); j < length; j++) {
-	    
-	    const float* sima = findex[i];
-	    const float* simb = findex[j];
 
-	    // Init partial sums
-	    __m128 vsum = _mm_setzero_ps();
+	    const __m128* sima = (__m128*) findex[i];
+	    const __m128* simb = (__m128*) findex[j];
 
-	    for(k = 0; k < ARRAY_LENGTH; k += 4) {
-		// Load 4 floats from sima, simb
-		__m128 va = _mm_load_ps(&sima[k]);
-		__m128 vb = _mm_load_ps(&simb[k]);
+	    // Init sums
+	    __m128 sum1 = _mm_setzero_ps();
+	    __m128 sum2 = _mm_setzero_ps();
 
-		// calc diff = sima - simb
-		__m128 vdiff = _mm_sub_ps(va, vb);
-
-		// calc neg diff = 0.0 - diff
-		__m128 vnegdiff = _mm_sub_ps(_mm_setzero_ps(), vdiff);
-
-		// calc abs diff = max(diff, - diff)
-		__m128 vabsdiff = _mm_max_ps(vdiff, vnegdiff);
-
-		// accumulate two partial sums
-		vsum = _mm_add_ps(vsum, vabsdiff);
+	    for(k = 0; k < ARRAY_LENGTH/4; k += 2) {
+		sum1 += abs_ps(_mm_sub_ps(sima[k], simb[k]));
+		sum2 += abs_ps(_mm_sub_ps(sima[k+1], simb[k+1]));
 	    }
 
+	    __m128 sum = _mm_add_ps(sum1, sum2);
+
 	    // Accumulate the partial sums into one
-	    vsum = _mm_hadd_ps(vsum, _mm_setzero_ps());
-	    vsum = _mm_hadd_ps(vsum, _mm_setzero_ps());
+	    sum = _mm_hadd_ps(sum, _mm_setzero_ps());
+	    sum = _mm_hadd_ps(sum, _mm_setzero_ps());
 
 	    // calc vsum = vsum / vdiv
-	    vsum = _mm_div_ps(vsum, _mm_set1_ps(SIMILARITY_DIV));
+	    sum = _mm_div_ps(sum, _mm_set1_ps(SIMILARITY_DIV));
 
 	    // calc vsum = 1.0 - vsum
-	    vsum = _mm_sub_ps(_mm_set1_ps(1.0), vsum);
+	    sum = _mm_sub_ps(_mm_set1_ps(1.0), sum);
 
 	    // unload vsum -> fp
 	    float fp[4];
-	    _mm_store_ps(&fp[0], vsum);
+	    _mm_store_ps(&fp[0], sum);
 
 	    if(fp[0] >= SIMILARITY_THRESHOLD) {
 		#pragma omp critical
@@ -370,10 +364,10 @@ void c_process() {
 	    }
 	}
     }
+#endif
 
     // Clean up
     c_teardown_floats();
-#endif
 #endif
     printf("dup: %d - list-length: %d\n", dup, list_length );
 }
