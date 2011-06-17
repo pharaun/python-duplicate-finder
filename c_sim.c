@@ -452,42 +452,37 @@ void c_process() {
     for(i = 0; i < length; i++) {
 	for(j = (i + 1); j < length; j++) {
 
-            const uint8_t* sima = uindex[i];
-            const uint8_t* simb = uindex[j];
+            const __m128i* sima = (__m128i*) uindex[i];
+            const __m128i* simb = (__m128i*) uindex[j];
 
-            // Init partial sums
-            __m128i vsum = _mm_setzero_si128();
+            // Init sum
+            __m128i sum1 = _mm_setzero_si128();
+            __m128i sum2 = _mm_setzero_si128();
 
-            for(k = 0; k < ARRAY_LENGTH; k += 16) {
-                // Load 16 uint8_t from sima, simb
-                __m128i va = _mm_load_si128((const __m128i*)&sima[k]);
-                __m128i vb = _mm_load_si128((const __m128i*)&simb[k]);
-
-                // Calc Sum Absolute Difference over the 16x uint8_t
-                // 0, 0, 0, uint16 | 0, 0, 0, uint16
-                __m128i vabsdiff = _mm_sad_epu8(va, vb);
-
-                // Accumulate the two int32 (uint16 "extended")
-                vsum = _mm_add_epi32(vsum, vabsdiff);
+            for(k = 0; k < ARRAY_LENGTH/16; k += 2) {
+                sum1 = _mm_add_epi32(sum1, _mm_sad_epu8(sima[k], simb[k]));
+                sum2 = _mm_add_epi32(sum2, _mm_sad_epu8(sima[k+1], simb[k+1]));
             }
 
+            __m128i sum = _mm_add_epi32(sum1, sum2);
+
             // Accumulate the partial sums into one
-            // 0, 0 | 0, int32
-            vsum = _mm_hadd_epi32(vsum, _mm_setzero_si128());
-            vsum = _mm_hadd_epi32(vsum, _mm_setzero_si128());
+            // 0, int32 | 0, int32
+            sum = _mm_hadd_epi32(sum, _mm_setzero_si128());
+            sum = _mm_hadd_epi32(sum, _mm_setzero_si128());
 
             // Convert the signed int32 to float
-            __m128 fvsum = _mm_cvtepi32_ps(vsum);
+            __m128 fsum = _mm_cvtepi32_ps(sum);
 
             // calc fvsum = fvsum / vdiv
-            fvsum = _mm_div_ps(fvsum, _mm_set1_ps(SIMILARITY_DIV));
+            fsum = _mm_div_ps(fsum, _mm_set1_ps(SIMILARITY_DIV));
 
             // calc fvsum = 1.0 - fvsum
-            fvsum = _mm_sub_ps(_mm_set1_ps(1.0), fvsum);
+            fsum = _mm_sub_ps(_mm_set1_ps(1.0), fsum);
 
-            // unload fvsum -> fp
+            // unload fsum -> fp
             float fp[4];
-            _mm_store_ps(&fp[0], fvsum);
+            _mm_store_ps(&fp[0], fsum);
 
 	    if(fp[0] >= SIMILARITY_THRESHOLD) {
 		#pragma omp critical
