@@ -23,6 +23,9 @@ void c_add( int idx, const double a[], const char* b );
 void c_double_to_float();
 void c_teardown_floats();
 
+void c_double_to_uint8();
+void c_teardown_uint8();
+
 void c_process();
 
 void c_teardown();

@@ -1,8 +1,10 @@
+#define UINT8
 #define SSE
 
 #include "c_sim.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <math.h>
 
 #include <omp.h>
@@ -35,6 +37,10 @@ int length;
 // Floats part of the app
 const float** findex;
 float* farray;
+
+// uint8 part of the app
+const uint8_t** uindex;
+uint8_t* uarray;
 
 
 //##############################################################################
@@ -205,6 +211,47 @@ void c_teardown_floats() {
 }
 
 //##############################################################################
+// Double -> uint8 integers
+//##############################################################################
+void c_double_to_uint8() {
+    printf( "c_double_to_uint8:\n");
+
+    // The address of a block returned by malloc or realloc in the GNU system
+    // is always a multiple of eight (or sixteen on 64-bit systems). 
+    uindex = calloc(length, sizeof(*uindex));
+    uarray = calloc((length * ARRAY_LENGTH), sizeof(*uarray));
+
+    if((uindex == NULL) || (uarray == NULL)) {
+	printf("Out of memory\n");
+    }
+
+    // Start the conversion here
+    int i, k;
+
+    for(i = 0; i < length; i++) {
+	const double* sim = array[i];
+
+	// File away this pointer as a index into the index array
+	uindex[i] = &uarray[(i * ARRAY_LENGTH)];
+
+	// Populate the farray with values
+	for(k = 0; k < ARRAY_LENGTH; k++) {
+	    uarray[((i * ARRAY_LENGTH) + k)] = (uint8_t)sim[k];
+	}
+    }
+}
+
+void c_teardown_uint8() {
+    printf( "c_teardown_uint8\n" );
+
+    free(uindex);
+    free(uarray);
+
+    uindex = NULL;
+    uarray = NULL;
+}
+
+//##############################################################################
 // Inlined abs
 //##############################################################################
 inline __m128 abs_ps(__m128 x) {
@@ -294,7 +341,9 @@ void c_process() {
 	}
     }
 #endif
-#else
+#endif
+
+#ifdef FLOAT
     // Convert the doubles to float
     c_double_to_float();
 #ifndef SSE
@@ -369,5 +418,92 @@ void c_process() {
     // Clean up
     c_teardown_floats();
 #endif
+
+#ifdef UINT8
+    // Convert the doubles to uint8
+    c_double_to_uint8();
+#ifndef SSE
+    #pragma omp parallel for shared(dup) private(j, i, k) schedule (dynamic)
+    for(i = 0; i < length; i++) {
+	for(j = (i + 1); j < length; j++) {
+
+	    const uint8_t* sima = uindex[i];
+	    const uint8_t* simb = uindex[j];
+
+	    int sum = 0;
+
+	    for(k = 0; k < ARRAY_LENGTH; k++) {
+		sum += abs(sima[k] - simb[k]);
+	    }
+
+	    float fp = (1.0 - ((float)sum / SIMILARITY_DIV));
+
+	    if(fp >= SIMILARITY_THRESHOLD) {
+		#pragma omp critical
+		{
+		    dup += 1;
+		    append_to_list((double)fp, i, j);
+		}
+	    }
+	}
+    }
+#else
+    #pragma omp parallel for shared(dup) private(j, i, k) schedule (dynamic)
+    for(i = 0; i < length; i++) {
+	for(j = (i + 1); j < length; j++) {
+
+            const uint8_t* sima = uindex[i];
+            const uint8_t* simb = uindex[j];
+
+            // Init partial sums
+            __m128i vsum = _mm_setzero_si128();
+
+            for(k = 0; k < ARRAY_LENGTH; k += 16) {
+                // Load 16 uint8_t from sima, simb
+                __m128i va = _mm_load_si128((const __m128i*)&sima[k]);
+                __m128i vb = _mm_load_si128((const __m128i*)&simb[k]);
+
+                // Calc Sum Absolute Difference over the 16x uint8_t
+                // 0, 0, 0, uint16 | 0, 0, 0, uint16
+                __m128i vabsdiff = _mm_sad_epu8(va, vb);
+
+                // Accumulate the two int32 (uint16 "extended")
+                vsum = _mm_add_epi32(vsum, vabsdiff);
+            }
+
+            // Accumulate the partial sums into one
+            // 0, 0 | 0, int32
+            vsum = _mm_hadd_epi32(vsum, _mm_setzero_si128());
+            vsum = _mm_hadd_epi32(vsum, _mm_setzero_si128());
+
+            // Convert the signed int32 to float
+            __m128 fvsum = _mm_cvtepi32_ps(vsum);
+
+            // calc fvsum = fvsum / vdiv
+            fvsum = _mm_div_ps(fvsum, _mm_set1_ps(SIMILARITY_DIV));
+
+            // calc fvsum = 1.0 - fvsum
+            fvsum = _mm_sub_ps(_mm_set1_ps(1.0), fvsum);
+
+            // unload fvsum -> fp
+            float fp[4];
+            _mm_store_ps(&fp[0], fvsum);
+
+	    if(fp[0] >= SIMILARITY_THRESHOLD) {
+		#pragma omp critical
+		{
+		    dup += 1;
+		    append_to_list((double)fp[0], i, j);
+		}
+	    }
+	}
+    }
+#endif
+
+    // Clean up
+    c_teardown_uint8();
+#endif
+
+
     printf("dup: %d - list-length: %d\n", dup, list_length );
 }
