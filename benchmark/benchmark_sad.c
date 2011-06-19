@@ -17,7 +17,7 @@
 #define SIMILARITY_THRESHOLD 0.98
 
 // Number of ... element to create
-#define COUNT 10000
+#define COUNT 1000
 
 // The arrays for each go here
 const float** findex;
@@ -188,23 +188,19 @@ void sse_float_process2() {
     for(i = 0; i < COUNT; i++) {
         for(j = (i + 1); j < COUNT; j++) {
 
-            const float* sima = findex[i];
-            const float* simb = findex[j];
+	    const __m128* sima = (__m128*) findex[i];
+	    const __m128* simb = (__m128*) findex[j];
 
 	    // Sign mask for abs - -0.0f = 1 << 31
 	    const __m128 sign_mask = _mm_set1_ps(-0.0f);
-
-	    // Breaking the dependency
-	    __m128* sima_ps = (__m128*) sima;
-	    __m128* simb_ps = (__m128*) simb;
 
 	    // Init sum
 	    __m128 sum1 = _mm_setzero_ps();
 	    __m128 sum2 = _mm_setzero_ps();
 
             for(k = 0; k < ARRAY_LENGTH/4; k += 2) {
-		sum1 += _mm_andnot_ps(sign_mask, _mm_sub_ps(sima_ps[k], simb_ps[k]));
-		sum2 += _mm_andnot_ps(sign_mask, _mm_sub_ps(sima_ps[k+1], simb_ps[k+1]));
+		sum1 += _mm_andnot_ps(sign_mask, _mm_sub_ps(sima[k], simb[k]));
+		sum2 += _mm_andnot_ps(sign_mask, _mm_sub_ps(sima[k+1], simb[k+1]));
 	    }
 
 	    __m128 sum = _mm_add_ps(sum1, sum2);
@@ -408,20 +404,16 @@ void sse_uint8_process3() {
     for(i = 0; i < COUNT; i++) {
         for(j = (i + 1); j < COUNT; j++) {
 
-	    const uint8_t* sima = uindex[i];
-            const uint8_t* simb = uindex[j];
-
-	    // Breaking the dependency
-	    __m128i* sima_si = (__m128i*) sima;
-	    __m128i* simb_si = (__m128i*) simb;
+	    const __m128i* sima = (__m128i*) uindex[i];
+	    const __m128i* simb = (__m128i*) uindex[j];
 
 	    // Init sum
 	    __m128i sum1 = _mm_setzero_si128();
 	    __m128i sum2 = _mm_setzero_si128();
 
 	    for(k = 0; k < ARRAY_LENGTH/16; k += 2) {
-		sum1 = _mm_add_epi32(sum1, _mm_sad_epu8(sima_si[k], simb_si[k]));
-		sum2 = _mm_add_epi32(sum2, _mm_sad_epu8(sima_si[k+1], simb_si[k+1]));
+		sum1 = _mm_add_epi32(sum1, _mm_sad_epu8(sima[k], simb[k]));
+		sum2 = _mm_add_epi32(sum2, _mm_sad_epu8(sima[k+1], simb[k+1]));
 	    }
 
 	    __m128i sum = _mm_add_epi32(sum1, sum2);
@@ -484,7 +476,6 @@ int main(int argc, const char** argv) {
     msec = diff * 1000 / CLOCKS_PER_SEC;
     printf("Cpu time taken %d seconds %d milliseconds\n", msec/1000, msec%1000);
     printf("User time taken %d seconds\n\n", diffepoch);
-    */
 
     startepoch = time(NULL);
     start = clock();
@@ -495,7 +486,6 @@ int main(int argc, const char** argv) {
     printf("Cpu time taken %d seconds %d milliseconds\n", msec/1000, msec%1000);
     printf("User time taken %d seconds\n\n", diffepoch);
 
-    /*
     startepoch = time(NULL);
     start = clock();
     c_uint8_process();
@@ -504,7 +494,6 @@ int main(int argc, const char** argv) {
     msec = diff * 1000 / CLOCKS_PER_SEC;
     printf("Cpu time taken %d seconds %d milliseconds\n", msec/1000, msec%1000);
     printf("User time taken %d seconds\n\n", diffepoch);
-    */
 
     startepoch = time(NULL);
     start = clock();
@@ -514,6 +503,7 @@ int main(int argc, const char** argv) {
     msec = diff * 1000 / CLOCKS_PER_SEC;
     printf("Cpu time taken %d seconds %d milliseconds\n", msec/1000, msec%1000);
     printf("User time taken %d seconds\n\n", diffepoch);
+    */
 
     startepoch = time(NULL);
     start = clock();
