@@ -456,15 +456,11 @@ void c_process() {
             const __m128i* simb = (__m128i*) uindex[j];
 
             // Init sum
-            __m128i sum1 = _mm_setzero_si128();
-            __m128i sum2 = _mm_setzero_si128();
+            __m128i sum = _mm_setzero_si128();
 
-            for(k = 0; k < ARRAY_LENGTH/16; k += 2) {
-                sum1 = _mm_add_epi32(sum1, _mm_sad_epu8(sima[k], simb[k]));
-                sum2 = _mm_add_epi32(sum2, _mm_sad_epu8(sima[k+1], simb[k+1]));
+            for(k = 0; k < ARRAY_LENGTH/16; k += 1) {
+                sum = _mm_add_epi32(sum, _mm_sad_epu8(sima[k], simb[k]));
             }
-
-            __m128i sum = _mm_add_epi32(sum1, sum2);
 
             // Accumulate the partial sums into one
             // 0, int32 | 0, int32
@@ -498,7 +494,6 @@ void c_process() {
     // Clean up
     c_teardown_uint8();
 #endif
-
 
     printf("dup: %d - list-length: %d\n", dup, list_length );
 }

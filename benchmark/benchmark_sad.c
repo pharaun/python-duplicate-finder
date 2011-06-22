@@ -345,23 +345,14 @@ void sse_uint8_process2() {
     for(i = 0; i < COUNT; i++) {
         for(j = (i + 1); j < COUNT; j++) {
 
-            const uint8_t* sima = uindex[i];
-            const uint8_t* simb = uindex[j];
+	    const __m128i* sima = (__m128i*) uindex[i];
+	    const __m128i* simb = (__m128i*) uindex[j];
 
 	    // Init partial sums
 	    __m128i vsum = _mm_setzero_si128();
 
-	    for(k = 0; k < ARRAY_LENGTH; k += 16) {
-		// Load 16 uint8_t from sima, simb
-		__m128i va = _mm_load_si128((const __m128i*)&sima[k]);
-		__m128i vb = _mm_load_si128((const __m128i*)&simb[k]);
-
-		// Calc Sum Absolute Difference over the 16x uint8_t
-		// 0, 0, 0, uint16 | 0, 0, 0, uint16
-		__m128i vabsdiff = _mm_sad_epu8(va, vb);
-
-		// Accumulate the two int32 (uint16 "extended")
-		vsum = _mm_add_epi32(vsum, vabsdiff);
+	    for(k = 0; k < ARRAY_LENGTH/16; k += 1) {
+		vsum = _mm_add_epi32(vsum, _mm_sad_epu8(sima[k], simb[k]));
 	    }
 
 	    // Accumulate the partial sums into one

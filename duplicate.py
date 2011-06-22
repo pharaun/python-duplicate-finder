@@ -136,9 +136,9 @@ if __name__ == '__main__':
     img = generate_img_list(rootdir, exclude)
     print "Timing: " + str(time.time() - start) + " s"
 
-#    print
-#    print "Generating image stats..."
-#    total = calc_image_stats(img)
+    print
+    print "Generating image stats..."
+    total = calc_image_stats(img)
 
     comp4 = []
     if imgsim:
@@ -179,9 +179,9 @@ if __name__ == '__main__':
         print "Timing: " + str(time.time() - start) + " s"
 
     # Detect duplicate.... duplicates
-#    print
-#    print "Detecting duplicate duplicates..."
-#    dup(comp4, "c")
+    print
+    print "Detecting duplicate duplicates..."
+    dup(comp4, "c")
 
 #    for idx in xrange(0,len(comp1)):
 #        fpa, pathaa, pathba = comp1[idx]
