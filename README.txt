@@ -40,3 +40,7 @@ _mm_sad_epu8
 
 Clean up the #pragma, don't need the array or other stuff in there anymore so
 makes sense to clean that stuff up
+
+
+3) look into some sort of data structure that lets you identify/discard
+already compared duplicate to cut down on compares a bit if possible
